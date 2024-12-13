@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老虎机</title>
+    <style>
+        @font-face {
+            font-family: "myFont";
+            src: local("myFont"), url("./myFont.ttf") format("truetype");
+            font-weight: normal;
+            font-style: normal;
+        }
+        :root {
+            --icon-width: 100px;
+            --icon-height: 100px;
+            --num-icons: 5;
+        }
+
+        body {
+            font-family: 'myFont';
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        .slot-machine {
+            position: relative;
+            display: flex;
+            gap: 10px;
+            padding: 20px;
+            background-color: #178be4;
+            border-radius: 10px;
+        }
+
+        .reel {
+            width: var(--icon-width);
+            height: calc(3 * var(--icon-height));
+            background-image: url('https://assets.codepen.io/439000/reel250.webp');
+            background-size: 100% auto;
+            border: 2px solid #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .reel.win {
+            border: 4px solid #22e611;
+        }
+        .reel.thanks {
+            border: 4px solid #FF0000;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .controls > * {
+            margin: 0 10px;
+        }
+        #spin-button, #auto-spin-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+
+        #auto-spin-button.active {
+            background-color: #f44336;
+        }
+        .winning-rectangle {
+            position: absolute;
+            top: var(--icon-height); /* 位于第一个图标的下方 */
+            left: 0;
+            right: 0;
+            height: var(--icon-height); /* 矩形高度等于一个图标的高度 */
+            width: calc(40+ 3 * var(--icon-height));
+            border: 8px solid rgba(19, 7, 10, 0.867); 
+            z-index: 10; /* 确保在轮盘上方 */
+            pointer-events: none; /* 允许点击穿透 */
+        }
+        #result {
+            position: absolute;
+            top: 40%;
+            left: 40%;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .diagonal-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+        }
+
+        .diagonal-line::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background-color: rgba(19, 7, 10, 0.867);
+            transform: rotate(-45deg);
+        }
+        
+    </style>
+</head>
+
+<body>
+    <div>
+        <div class="slot-machine">
+            <div class="winning-rectangle"></div>
+            <div class="diagonal-line" id="diagonal-line"></div>
+            <div class="result" id="result"></div>
+            <div class="reel" id="reel1"></div>
+            <div class="reel" id="reel2"></div>
+            <div class="reel" id="reel3"></div>
+        </div>
+        <div class="controls">
+            <button id="spin-button">Spin</button>
+            <button id="auto-spin-button">Auto Spin</button>
+        </div>
+    </div>
+
+    <script>
+        const numIcons = 5;
+        const iconHeight = 100;
+        let isAutoSpinning = false;
+
+        function roll(reel) {
+                return new Promise((resolve) => {
+                    const baseRotations = 3; // 基础圈数
+                    const extraRotations = Math.floor(Math.random() * numIcons); // 额外的格数
+                    const numRotations = baseRotations * numIcons + extraRotations;
+                    const timePerRotation = 100; // 每个图标的旋转时间（毫秒）
+                    const duration = numRotations * timePerRotation;
+                    const finalIndex = extraRotations;
+
+                    reel.style.transition = `background-position-y ${duration}ms cubic-bezier(.25,.1,.25,1)`;
+                    reel.style.backgroundPositionY = `-${numRotations * iconHeight}px`;
+
+                    setTimeout(() => {
+                        reel.style.transition = 'none';
+                        reel.style.backgroundPositionY = `-${finalIndex * iconHeight}px`;
+                        resolve({
+                            current: finalIndex,
+                            next: (finalIndex + 1) % numIcons,
+                            previous: (finalIndex + numIcons - 1) % numIcons
+                        });
+                    }, duration);
+                });
+            }
+
+        function toggleAutoSpin() {
+            const autoSpinButton = document.getElementById('auto-spin-button');
+            isAutoSpinning = !isAutoSpinning;
+            if (isAutoSpinning) {
+                autoSpinButton.textContent = 'Stop Auto';
+                autoSpinButton.classList.add('active');
+                autoSpin();
+            } else {
+                autoSpinButton.textContent = 'Auto Spin';
+                autoSpinButton.classList.remove('active');
+            }
+        }
+
+        function autoSpin() {
+                if (isAutoSpinning) {
+                    spinAll().then(() => {
+                        if (isAutoSpinning) {
+                            // 等待1秒后再次旋转
+                            setTimeout(autoSpin, 1000);
+                        }
+                    });
+                }
+            }
+    
+        function spinAll() {
+                return new Promise((resolve) => {  
+                    const reels = [
+                        document.getElementById('reel1'),
+                        document.getElementById('reel2'),
+                        document.getElementById('reel3')
+                    ];
+
+                    const diagonalLine = document.getElementById('diagonal-line');
+
+                    // 隐藏对角线和重置轮盘样式
+                    diagonalLine.style.display = 'none';
+                    //去除win和thanks
+                    reels.forEach(reel => {
+                        reel.classList.remove('win');
+                        reel.classList.remove('thanks');
+                    });
+
+                    document.getElementById('spin-button').disabled = true;
+                    document.getElementById('result').textContent = '转动中...';
+
+                    Promise.all(reels.map(roll)).then(results => {
+                        document.getElementById('spin-button').disabled = false;
+                        if (results[0].current === results[1].current && results[1].current === results[2].current) {
+                            document.getElementById('result').textContent = '恭喜！大奖！';
+                            reels.forEach(reel => reel.classList.add('win'));
+                        } else if (results[0].next === results[1].current && results[1].current === results[2].previous) {
+                            document.getElementById('result').textContent = '恭喜！特别奖！';
+                            diagonalLine.style.display = 'block';
+                            reels.forEach(reel => reel.classList.add('win'));
+                        } else if (results[0].current === results[1].current || results[1].current === results[2].current || results[0].current === results[2].current) {
+                            document.getElementById('result').textContent = '小奖！';
+                            reels.forEach(reel => reel.classList.add('win'));
+                        } else {
+                            document.getElementById('result').textContent = '再接再厉！';
+                            reels.forEach(reel => reel.classList.add('thanks'));
+                        }
+                        resolve();  
+                    });
+                });  
+            }
+
+        document.getElementById('spin-button').addEventListener('click', spinAll);
+        document.getElementById('auto-spin-button').addEventListener('click', toggleAutoSpin);
+    </script>
+</body>
+
+</html>
