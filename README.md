@@ -42,3 +42,7 @@
 ## 贡献
 
 欢迎提出建议和改进意见！请随时创建 issue 或提交 pull request。
+
+## 许可
+
+本项目采用 MIT 许可证。查看 [LICENSE](LICENSE) 文件了解更多信息。
